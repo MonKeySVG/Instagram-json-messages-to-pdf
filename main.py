@@ -27,7 +27,7 @@ pdf = canvas.Canvas("discussion.pdf", pagesize=letter)
 width, height = letter
 
 # Enregistrez la police
-pdfmetrics.registerFont(TTFont('Symbola','Symbola.ttf'))
+pdfmetrics.registerFont(TTFont('Symbola','Segoe UI Emoji.ttf'))
 
 # Utilisez la police
 pdf.setFont('Symbola', 15)  # Remplacez 12 par la taille de police que vous souhaitez utiliser
@@ -132,7 +132,7 @@ for message in discussion['messages']:
             pdf.drawImage(photo_uri, 100, y_position - height_points, width_points, height_points)
 
             # Mettre à jour la position pour la prochaine image ou le prochain message
-            y_position -= height_points + 20
+            y_position -= height_points + 35
 
             # Ajouter une nouvelle page si nécessaire
             if y_position < 50:
