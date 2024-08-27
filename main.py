@@ -1,152 +1,147 @@
 import json
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-from datetime import datetime, timedelta
-from reportlab.lib.colors import *
 import textwrap
-from reportlab.lib.units import inch
+from datetime import datetime, timedelta
 from PIL import Image
-
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.colors import *
+from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
-# Lire le fichier JSON
+# Demande à l'utilisateur le type de PDF souhaité
+choice = input("Voulez-vous un PDF avec une page continue (tapez 'c') ou un système de pages normales (tapez 'n') ? ")
+
+# Variables de mise en forme
+line_spacing = 20
+big_line_spacing = 25
+margin_top = 100
+y_position = margin_top
+max_text_width = 0  # Sera défini plus tard
+
+# Chargement des données JSON
 with open('discussion.json', 'r') as file:
     discussion = json.load(file)
 
+if choice == 'c':
+    # Calculer la hauteur totale nécessaire pour une page continue
+    total_height = margin_top
+    for message in discussion['messages']:
+        contenu = message.get('content', '[Aucun texte]').encode('latin1').decode('utf8')
+        lignes = contenu.split('\n')
+        for ligne in lignes:
+            wrapped_text = textwrap.wrap(ligne, width=85)
+            total_height += line_spacing
+        total_height += big_line_spacing
 
+        photos = message.get('photos', [])
+        for photo in photos:
+            with Image.open(photo['uri']) as img:
+                img_width, img_height = img.size
+            total_height += (img_height / 72 * 10) + 35
 
-# Récupérer la liste unique des auteurs
+    # Configuration du PDF pour une page continue
+    pdf = canvas.Canvas("discussion_continuous.pdf", pagesize=(612, total_height))
+    width = 612
+    height = total_height
+    y_position = height - 100
+    max_text_width = int(width - 550)
+
+else:
+    # Configuration du PDF pour des pages normales
+    pdf = canvas.Canvas("discussion_paged.pdf", pagesize=letter)
+    width, height = letter
+    y_position = height - 100
+    max_text_width = int(width - 550)
+
+# Enregistrement de la police
+pdfmetrics.registerFont(TTFont('SegoeUI', 'Segoe UI Emoji.ttf'))
+
+# Création de la liste des auteurs et des couleurs associées
 authors = set(message['sender_name'] for message in discussion['messages'])
-
-# Générer une couleur aléatoire pour chaque auteur
 authors_list = list(authors)
 author_colors = {authors_list[0]: "#4653c3", authors_list[1]: "#282445"}
 
-# Créer le PDF
-pdf = canvas.Canvas("discussion.pdf", pagesize=letter)
-width, height = letter
-
-# Enregistrez la police
-pdfmetrics.registerFont(TTFont('SegoeUI','Segoe UI Emoji.ttf'))
-
-# Ajouter un titre
-pdf.setFont('SegoeUI', 30)  # Définir la taille de la police pour le titre
-pdf.drawString(100, height - 70, "Transcript - " + authors.pop() + " and " + authors.pop())
-
-# Utilisez la police
-pdf.setFont('SegoeUI', 15)  # Remplacez 12 par la taille de police que vous souhaitez utiliser
-
-# Définir une position de départ
-y_position = height - 100
-
-# Largeur maximale pour le texte
-max_text_width = int(width - 550) # Ajustez cette valeur en fonction de vos besoins
-
-
-# Fonction pour convertir le timestamp en date lisible
+# Fonction pour convertir les timestamps en dates lisibles
 def timestamp_to_date(timestamp_ms):
     return datetime.fromtimestamp(timestamp_ms / 1000).strftime('%Y-%m-%d %H:%M:%S')
 
+# Configuration du titre du PDF
+pdf.setFont('SegoeUI', 30)
+pdf.drawString(100, height - 70, "Transcript - " + authors.pop() + " and " + authors.pop())
+pdf.setFont('SegoeUI', 15)
 
-# Ajouter chaque message dans le PDF
-previous_sender = None  # Variable pour stocker le nom de l'auteur du message précédent
-
+# Inverser les messages pour commencer par le plus ancien
 discussion['messages'].reverse()
 
+previous_sender = None
+previous_time = None
 
+# Parcourir chaque message dans la discussion
 for message in discussion['messages']:
     auteur = message['sender_name']
     timestamp = timestamp_to_date(message['timestamp_ms'])
-
-    # Changer la couleur du texte en fonction de l'auteur
     color = author_colors.get(auteur, black)
     pdf.setFillColor(color)
 
-    # Vérifier si le message a du contenu textuel
-    contenu = message.get('content', '[Aucun texte]')  # Texte par défaut si 'content' n'existe pas
+    contenu = message.get('content', '[Aucun texte]')
 
-    # Remplacer le contenu par "[lien]" s'il commence par "http"
+    # Remplacer les liens par une mention générique
     if contenu.startswith("http"):
         contenu = "[lien]"
 
-    # Décoder le contenu UTF-8
+    # Encodage du contenu en UTF-8 pour éviter les erreurs
     contenu = contenu.encode('latin1').decode('utf8')
 
-    # Diviser le contenu en lignes si "\n" est présent
+    # Gérer les lignes de texte
     lignes = contenu.split('\n')
-
-    # Ajouter le texte formaté pour chaque ligne
     for ligne in lignes:
         texte = f"[{timestamp}] {auteur} : {ligne}"
-
-        current_time=timestamp
-        current_time = datetime.strptime(current_time, "%Y-%m-%d %H:%M:%S")
-
-        # Diviser le texte en plusieurs lignes si nécessaire
+        current_time = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
         wrapped_text = textwrap.wrap(texte, width=max_text_width)
 
         for line in wrapped_text:
-            # Si l'auteur du message a changé, faire un saut de ligne plus grand
-            if previous_sender != auteur:
-                y_position -= 25  # Ajustez cette valeur en fonction de vos besoins
-            elif previous_time and current_time - previous_time > timedelta(hours=1):
-                y_position -= 25
+            if previous_sender != auteur or (previous_time and current_time - previous_time > timedelta(hours=1)):
+                y_position -= big_line_spacing
 
             pdf.drawString(100, y_position, line)
+            y_position -= line_spacing
 
-            # Mise à jour du temps du dernier message
+            # Créer une nouvelle page si l'espace est insuffisant (pour le mode normal)
+            if y_position < 50 and choice != 'c':
+                pdf.showPage()
+                pdf.setFillColor(color)
+                pdf.setFont('SegoeUI', 15)
+                y_position = height - 50
+
+            previous_sender = auteur
             previous_time = current_time
 
-            # Mettre à jour la position pour le prochain message
-            y_position -= 20
+    # Gérer les photos attachées au message
+    photos = message.get('photos', [])
+    for photo in photos:
+        photo_uri = photo['uri']
 
-            # Ajouter une nouvelle page si nécessaire
-            if y_position < 50:
-                pdf.showPage()
-                pdf.setFillColor(color)
-                pdf.setFont('SegoeUI', 15)
-                y_position = height - 50
+        with Image.open(photo_uri) as img:
+            img_width, img_height = img.size
 
-            # Mettre à jour le nom de l'auteur du message précédent
-            previous_sender = auteur
+        # Convertir la taille de l'image en points
+        width_points = img_width / 72 * 10
+        height_points = img_height / 72 * 10
 
-        # Vérifier si le message contient des photos
-        photos = message.get('photos', [])
-        for photo in photos:
-            # Récupérer l'URI de la photo
-            photo_uri = photo['uri']
+        if y_position < 50 + height_points and choice != 'c':
+            pdf.showPage()
+            pdf.setFillColor(color)
+            pdf.setFont('SegoeUI', 15)
+            y_position = height - 50
 
-            # Dessiner l'image dans le PDF
-            # Remplacez '100' et 'y_position' par les coordonnées où vous souhaitez dessiner l'image
-            # Remplacez '1*inch' et '1*inch' par la largeur et la hauteur souhaitées de l'image
-            with Image.open(photo_uri) as img:
-                img_width, img_height = img.size
+        pdf.drawImage(photo_uri, 100, y_position - height_points, width_points, height_points)
+        y_position -= height_points + 35
 
-            # Convertir les dimensions en points (la bibliothèque PDF utilise des points comme unité de mesure, 1 point = 1/72 pouces)
-            width_points = img_width / 72 * 10
-            height_points = img_height / 72 * 10
-
-            if y_position < 50 + height_points:
-                pdf.showPage()
-                pdf.setFillColor(color)
-                pdf.setFont('SegoeUI', 15)
-                y_position = height - 50
-
-            # Dessiner l'image avec ses dimensions originales
-            pdf.drawImage(photo_uri, 100, y_position - height_points, width_points, height_points)
-
-            # Mettre à jour la position pour la prochaine image ou le prochain message
-            y_position -= height_points + 35
-
-            # Ajouter une nouvelle page si nécessaire
-            if y_position < 50:
-                pdf.showPage()
-                pdf.setFillColor(color)
-                pdf.setFont('SegoeUI', 15)
-                y_position = height - 50
-
-
+        if y_position < 50 and choice != 'c':
+            pdf.showPage()
+            pdf.setFillColor(color)
+            pdf.setFont('SegoeUI', 15)
+            y_position = height - 50
 
 # Sauvegarder le PDF
 pdf.save()
