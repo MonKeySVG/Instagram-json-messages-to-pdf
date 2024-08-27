@@ -4,10 +4,17 @@ from reportlab.pdfgen import canvas
 from datetime import datetime
 from reportlab.lib.colors import *
 import textwrap
+from reportlab.lib.units import inch
+from PIL import Image
+
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 # Lire le fichier JSON
 with open('discussion.json', 'r') as file:
     discussion = json.load(file)
+
+
 
 # Récupérer la liste unique des auteurs
 authors = set(message['sender_name'] for message in discussion['messages'])
@@ -19,11 +26,17 @@ author_colors = {authors.pop(): "#4653c3", authors.pop(): "#282445"}
 pdf = canvas.Canvas("discussion.pdf", pagesize=letter)
 width, height = letter
 
+# Enregistrez la police
+pdfmetrics.registerFont(TTFont('Symbola','Symbola.ttf'))
+
+# Utilisez la police
+pdf.setFont('Symbola', 15)  # Remplacez 12 par la taille de police que vous souhaitez utiliser
+
 # Définir une position de départ
 y_position = height - 50
 
 # Largeur maximale pour le texte
-max_text_width = int(width - 530) # Ajustez cette valeur en fonction de vos besoins
+max_text_width = int(width - 550) # Ajustez cette valeur en fonction de vos besoins
 
 
 # Fonction pour convertir le timestamp en date lisible
@@ -79,10 +92,48 @@ for message in discussion['messages']:
             if y_position < 50:
                 pdf.showPage()
                 pdf.setFillColor(color)
+                pdf.setFont('Symbola', 15)
                 y_position = height - 50
 
             # Mettre à jour le nom de l'auteur du message précédent
             previous_sender = auteur
+
+        # Vérifier si le message contient des photos
+        photos = message.get('photos', [])
+        for photo in photos:
+            # Récupérer l'URI de la photo
+            photo_uri = photo['uri']
+
+            # Dessiner l'image dans le PDF
+            # Remplacez '100' et 'y_position' par les coordonnées où vous souhaitez dessiner l'image
+            # Remplacez '1*inch' et '1*inch' par la largeur et la hauteur souhaitées de l'image
+            with Image.open(photo_uri) as img:
+                img_width, img_height = img.size
+
+            # Convertir les dimensions en points (la bibliothèque PDF utilise des points comme unité de mesure, 1 point = 1/72 pouces)
+            width_points = img_width / 72 * 10
+            height_points = img_height / 72 * 10
+
+            if y_position < 50 + height_points:
+                pdf.showPage()
+                pdf.setFillColor(color)
+                pdf.setFont('Symbola', 15)
+                y_position = height - 50
+
+            # Dessiner l'image avec ses dimensions originales
+            pdf.drawImage(photo_uri, 100, y_position - height_points, width_points, height_points)
+
+            # Mettre à jour la position pour la prochaine image ou le prochain message
+            y_position -= height_points + 20
+
+            # Ajouter une nouvelle page si nécessaire
+            if y_position < 50:
+                pdf.showPage()
+                pdf.setFillColor(color)
+                pdf.setFont('Symbola', 15)
+                y_position = height - 50
+
+
 
 # Sauvegarder le PDF
 pdf.save()
