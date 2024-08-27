@@ -1,7 +1,7 @@
 import json
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
-from datetime import datetime
+from datetime import datetime, timedelta
 from reportlab.lib.colors import *
 import textwrap
 from reportlab.lib.units import inch
@@ -75,6 +75,9 @@ for message in discussion['messages']:
     for ligne in lignes:
         texte = f"[{timestamp}] {auteur} : {ligne}"
 
+        current_time=timestamp
+        current_time = datetime.strptime(current_time, "%Y-%m-%d %H:%M:%S")
+
         # Diviser le texte en plusieurs lignes si nécessaire
         wrapped_text = textwrap.wrap(texte, width=max_text_width)
 
@@ -82,8 +85,13 @@ for message in discussion['messages']:
             # Si l'auteur du message a changé, faire un saut de ligne plus grand
             if previous_sender != auteur:
                 y_position -= 25  # Ajustez cette valeur en fonction de vos besoins
+            elif previous_time and current_time - previous_time > timedelta(hours=1):
+                y_position -= 25
 
             pdf.drawString(100, y_position, line)
+
+            # Mise à jour du temps du dernier message
+            previous_time = current_time
 
             # Mettre à jour la position pour le prochain message
             y_position -= 20
