@@ -20,20 +20,25 @@ with open('discussion.json', 'r') as file:
 authors = set(message['sender_name'] for message in discussion['messages'])
 
 # Générer une couleur aléatoire pour chaque auteur
-author_colors = {authors.pop(): "#4653c3", authors.pop(): "#282445"}
+authors_list = list(authors)
+author_colors = {authors_list[0]: "#4653c3", authors_list[1]: "#282445"}
 
 # Créer le PDF
 pdf = canvas.Canvas("discussion.pdf", pagesize=letter)
 width, height = letter
 
 # Enregistrez la police
-pdfmetrics.registerFont(TTFont('Symbola','Segoe UI Emoji.ttf'))
+pdfmetrics.registerFont(TTFont('SegoeUI','Segoe UI Emoji.ttf'))
+
+# Ajouter un titre
+pdf.setFont('SegoeUI', 30)  # Définir la taille de la police pour le titre
+pdf.drawString(100, height - 70, "Transcript - " + authors.pop() + " and " + authors.pop())
 
 # Utilisez la police
-pdf.setFont('Symbola', 15)  # Remplacez 12 par la taille de police que vous souhaitez utiliser
+pdf.setFont('SegoeUI', 15)  # Remplacez 12 par la taille de police que vous souhaitez utiliser
 
 # Définir une position de départ
-y_position = height - 50
+y_position = height - 100
 
 # Largeur maximale pour le texte
 max_text_width = int(width - 550) # Ajustez cette valeur en fonction de vos besoins
@@ -100,7 +105,7 @@ for message in discussion['messages']:
             if y_position < 50:
                 pdf.showPage()
                 pdf.setFillColor(color)
-                pdf.setFont('Symbola', 15)
+                pdf.setFont('SegoeUI', 15)
                 y_position = height - 50
 
             # Mettre à jour le nom de l'auteur du message précédent
@@ -125,7 +130,7 @@ for message in discussion['messages']:
             if y_position < 50 + height_points:
                 pdf.showPage()
                 pdf.setFillColor(color)
-                pdf.setFont('Symbola', 15)
+                pdf.setFont('SegoeUI', 15)
                 y_position = height - 50
 
             # Dessiner l'image avec ses dimensions originales
@@ -138,7 +143,7 @@ for message in discussion['messages']:
             if y_position < 50:
                 pdf.showPage()
                 pdf.setFillColor(color)
-                pdf.setFont('Symbola', 15)
+                pdf.setFont('SegoeUI', 15)
                 y_position = height - 50
 
 
